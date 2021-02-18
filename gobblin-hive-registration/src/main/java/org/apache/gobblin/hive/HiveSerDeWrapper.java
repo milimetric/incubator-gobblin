@@ -28,7 +28,7 @@ import org.apache.hadoop.hive.ql.io.orc.OrcSerde;
 import org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat;
 import org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat;
 import org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe;
-import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.avro.AvroSerDe;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
 import org.apache.hadoop.mapred.TextInputFormat;
@@ -42,7 +42,7 @@ import org.apache.gobblin.configuration.State;
 
 
 /**
- * A wrapper around {@link SerDe} that bundles input format, output format and file extension with a {@link SerDe},
+ * A wrapper around {@link AbstractSerDe} that bundles input format, output format and file extension with a {@link AbstractSerDe},
  * and provides additional functionalities.
  *
  * @author Ziyang Liu
@@ -88,7 +88,7 @@ public class HiveSerDeWrapper {
     }
   }
 
-  private Optional<SerDe> serDe = Optional.absent();
+  private Optional<AbstractSerDe> serDe = Optional.absent();
   private final String serDeClassName;
   private final String inputFormatClassName;
   private final String outputFormatClassName;
@@ -104,13 +104,13 @@ public class HiveSerDeWrapper {
   }
 
   /**
-   * Get the {@link SerDe} instance associated with this {@link HiveSerDeWrapper}.
+   * Get the {@link AbstractSerDe} instance associated with this {@link HiveSerDeWrapper}.
    * This method performs lazy initialization.
    */
-  public SerDe getSerDe() throws IOException {
+  public AbstractSerDe getSerDe() throws IOException {
     if (!this.serDe.isPresent()) {
       try {
-        this.serDe = Optional.of(SerDe.class.cast(Class.forName(this.serDeClassName).newInstance()));
+        this.serDe = Optional.of(AbstractSerDe.class.cast(Class.forName(this.serDeClassName).newInstance()));
       } catch (Throwable t) {
         throw new IOException("Failed to instantiate SerDe " + this.serDeClassName, t);
       }
@@ -145,7 +145,7 @@ public class HiveSerDeWrapper {
    * Get an instance of {@link HiveSerDeWrapper}.
    *
    * @param serDeType The SerDe type. If serDeType is one of the available {@link HiveSerDeWrapper.BuiltInHiveSerDe},
-   * the other three parameters are not used. Otherwise, serDeType should be the class name of a {@link SerDe},
+   * the other three parameters are not used. Otherwise, serDeType should be the class name of a {@link AbstractSerDe},
    * and the other three parameters must be present.
    */
   public static HiveSerDeWrapper get(String serDeType, Optional<String> inputFormatClassName,

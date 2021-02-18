@@ -33,6 +33,7 @@ import org.apache.gobblin.source.extractor.Extractor;
 import org.apache.gobblin.source.workunit.WorkUnit;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,11 +48,10 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
+import org.apache.log4j.*;
+import org.apache.logging.log4j.core.Filter;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -76,10 +76,10 @@ public class MRTaskFactoryTest {
     Assert.assertTrue(job2Dir.mkdir());
     writeFileWithContent(job2Dir, "file1", "word1 word2 word2");
 
-    TestAppender testAppender = new TestAppender();
+    TestAppender testAppender = new TestAppender("testAppender", null, null);
     Logger logger = LogManager.getLogger(MRTask.class.getName());
     logger.setLevel(Level.INFO);
-    logger.addAppender(testAppender);
+    logger.addAppender((Appender) testAppender);
 
     EmbeddedGobblin embeddedGobblin = new EmbeddedGobblin("WordCounter")
         .setConfiguration(ConfigurationKeys.SOURCE_CLASS_KEY, MRWordCountSource.class.getName())
@@ -87,10 +87,10 @@ public class MRTaskFactoryTest {
         .setConfiguration(MRWordCountSource.OUTPUT_LOCATION, outputSuperPath.getAbsolutePath());
 
     JobExecutionResult result = embeddedGobblin.run();
-    logger.removeAppender(testAppender);
+    logger.removeAppender((Appender) testAppender);
 
     Assert.assertTrue(result.isSuccessful());
-    Assert.assertTrue(testAppender.events.stream().anyMatch(e -> e.getRenderedMessage()
+    Assert.assertTrue(testAppender.events.stream().anyMatch(e -> e.getMessage().getFormattedMessage()
         .startsWith("MR tracking URL http://localhost:8080/ for job WordCount_job1")));
 
     File output1 = new File(new File(outputSuperPath, "job1"), "part-r-00000");
@@ -208,12 +208,17 @@ public class MRTaskFactoryTest {
     }
   }
 
-  private class TestAppender extends AppenderSkeleton {
-    List<LoggingEvent> events = new ArrayList<>();
+  private class TestAppender extends AbstractAppender {
+    List<LogEvent> events = new ArrayList<>();
+
+    protected TestAppender(String name, Filter filter, org.apache.logging.log4j.core.Layout<? extends Serializable> layout) {
+      super(name, filter, layout);
+    }
+
     public void close() {}
     public boolean requiresLayout() {return false;}
     @Override
-    protected void append(LoggingEvent event) {
+    public void append(LogEvent event) {
       events.add(event);
     }
   }

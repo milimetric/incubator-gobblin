@@ -25,7 +25,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.ql.io.IOConstants;
-import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.avro.AvroObjectInspectorGenerator;
 import org.apache.hadoop.hive.serde2.avro.AvroSerDe;
@@ -48,15 +48,15 @@ import org.apache.gobblin.util.HadoopUtils;
 
 
 /**
- * An {@link InstrumentedConverter} that takes a {@link Writable} record, uses a Hive {@link SerDe} to
- * deserialize it, and uses another Hive {@link SerDe} to serialize it into a {@link Writable} record.
+ * An {@link InstrumentedConverter} that takes a {@link Writable} record, uses a Hive {@link AbstractSerDe} to
+ * deserialize it, and uses another Hive {@link AbstractSerDe} to serialize it into a {@link Writable} record.
  *
  * The serializer and deserializer are specified using {@link HiveSerDeWrapper#SERDE_SERIALIZER_TYPE}
  * and {@link HiveSerDeWrapper#SERDE_DESERIALIZER_TYPE}.
  *
  * <p>
  *   Note this class has known issues when the {@link #serializer} is set to
- *   {@link org.apache.hadoop.hive.serde2.avro.AvroSerializer}. Mainly due to the fact that the Avro Serializer caches
+ *   {@link org.apache.hadoop.hive.serde2.avro.AvroSerDe}. Mainly due to the fact that the Avro Serializer caches
  *   returned objects, which are not immediately consumed by the
  *   {@link org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat}.
  * </p>
@@ -73,8 +73,8 @@ import org.apache.gobblin.util.HadoopUtils;
 @Slf4j
 public class HiveSerDeConverter extends InstrumentedConverter<Object, Object, Writable, Writable> {
 
-  private SerDe serializer;
-  private SerDe deserializer;
+  private AbstractSerDe serializer;
+  private AbstractSerDe deserializer;
 
   @Override
   public HiveSerDeConverter init(WorkUnitState state) {
@@ -99,9 +99,9 @@ public class HiveSerDeConverter extends InstrumentedConverter<Object, Object, Wr
   }
 
   private void setColumnsIfPossible(WorkUnitState state)
-      throws SerDeException {
+          throws SerDeException, IOException {
     AvroObjectInspectorGenerator aoig = new AvroObjectInspectorGenerator(
-        AvroSerdeUtils.determineSchemaOrReturnErrorSchema(state.getProperties()));
+        AvroSerdeUtils.determineSchemaOrThrowException(HadoopUtils.getConfFromState(state), state.getProperties()));
     List<String> columnNames = aoig.getColumnNames();
     List<TypeInfo> columnTypes = aoig.getColumnTypes();
 
