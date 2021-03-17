@@ -15,29 +15,16 @@
  * limitations under the License.
  */
 
-apply plugin: 'java'
+package org.apache.gobblin.wmf;
 
-dependencies {
-    compile project(":gobblin-core")
-    compile project(":gobblin-modules:gobblin-kafka-1")
+import org.apache.gobblin.configuration.WorkUnitState;
+import org.apache.gobblin.source.extractor.Extractor;
+import org.apache.gobblin.source.extractor.extract.kafka.KafkaSource;
 
-    compile externalDependency.gson
 
-    testCompile externalDependency.testng
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.6.5'
+public class WmfKafkaTimestampSource extends KafkaSource<Object, Object> {
+    @Override
+    public Extractor<Object, Object> getExtractor(WorkUnitState state) {
+        return new WmfKafkaTimestampExtractor(state);
+    }
 }
-
-configurations {
-    compile { transitive = false }
-    // Remove xerces dependencies because of versioning issues. Standard JRE implementation should
-    // work. See also http://stackoverflow.com/questions/11677572/dealing-with-xerces-hell-in-java-maven
-    // HADOOP-5254 and MAPREDUCE-5664
-    all*.exclude group: 'xml-apis'
-    all*.exclude group: 'xerces'
-}
-
-test {
-    workingDir rootProject.rootDir
-}
-
-ext.classification = "library"
