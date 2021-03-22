@@ -15,15 +15,21 @@
  * limitations under the License.
  */
 
-package org.apache.gobblin.wmf;
+package org.apache.gobblin.wmf.writer.partitioner;
 
+import com.google.common.base.Optional;
 import org.apache.commons.io.FileUtils;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.State;
 import org.apache.gobblin.stream.RecordEnvelope;
+import org.apache.gobblin.wmf.TimestampedRecord;
+import org.apache.gobblin.wmf.writer.TimestampedStringRecordDataWriterBuilder;
 import org.apache.gobblin.writer.*;
 import org.apache.gobblin.writer.partitioner.TimeBasedWriterPartitioner;
 import org.apache.hadoop.fs.Path;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -34,20 +40,19 @@ import java.io.IOException;
 
 
 /**
- * Tests for {@link WmfJacksonTimeBasedWriterPartitioner}.
+ * Tests for {@link TimestampedRecordTimeBasedWriterPartitioner}.
+ * Copied and updated from gobblin-core:org.apache.gobblin.writer.partitioner.TimeBasedAvroWriterPartitionerTest
  */
 @Test
-public class TestJacksonWmfTimeBasedWriterPartitioner {
+public class TestTimestampedRecordTimeBasedWriterPartitioner {
 
-    private static final String SIMPLE_CLASS_NAME = TestJacksonWmfTimeBasedWriterPartitioner.class.getSimpleName();
+    private static final String SIMPLE_CLASS_NAME = TestTimestampedRecordTimeBasedWriterPartitioner.class.getSimpleName();
 
     private static final String TEST_ROOT_DIR = SIMPLE_CLASS_NAME + "-test";
     private static final String STAGING_DIR = TEST_ROOT_DIR + Path.SEPARATOR + "staging";
     private static final String OUTPUT_DIR = TEST_ROOT_DIR + Path.SEPARATOR + "output";
     private static final String BASE_FILE_PATH = "base";
     private static final String FILE_NAME = SIMPLE_CLASS_NAME + "-name.txt";
-    private static final String TIMESTAMP_COLUMN = "/meta/dt";
-    private static final String TIMESTAMP_FORMAT = "unix_milliseconds";
     private static final String WRITER_ID = "writer-1";
 
     @BeforeClass
@@ -80,11 +85,13 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
         // Write three records, each should be written to a different file
         DataWriter<Object> millisPartitionWriter = getWriter(state);
 
+        String emptyPayload = "";
         // This timestamp corresponds to 2015/01/01
-        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420099200000}}".getBytes()));
+        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>(new TimestampedRecord<>(emptyPayload, Optional.of(1420099200000L))));
 
-        // This timestamp corresponds to 2015/01/02
-        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420185600000}}".getBytes()));
+        // This timestamp is empty, leading to current time set
+        DateTime currentDateTime = new DateTime(DateTimeZone.UTC);
+        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>(new TimestampedRecord<>(emptyPayload, Optional.absent())));
 
         millisPartitionWriter.close();
         millisPartitionWriter.commit();
@@ -93,15 +100,15 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
 
         state.setProp(TimeBasedWriterPartitioner.WRITER_PARTITION_TIMEUNIT, "seconds");
         DataWriter<Object> secsPartitionWriter = getWriter(state);
-        // This timestamp corresponds to 2015/01/03
-        secsPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420272000}}".getBytes()));
+        // This timestamp corresponds to
+        secsPartitionWriter.writeEnvelope(new RecordEnvelope<>(new TimestampedRecord<>(emptyPayload, Optional.of(1420272000L))));
         secsPartitionWriter.close();
         secsPartitionWriter.commit();
         // Check that the writer reports that 1 record has been written
         Assert.assertEquals(secsPartitionWriter.recordsWritten(), 1);
 
         // Check that 3 files were created
-        // Assert.assertEquals(FileUtils.listFiles(new File(TEST_ROOT_DIR), new String[] { "txt" }, true).size(), 3);
+        Assert.assertEquals(FileUtils.listFiles(new File(TEST_ROOT_DIR), new String[] { "txt" }, true).size(), 3);
 
         // Check if each file exists, and in the correct location
         File baseOutputDir = new File(OUTPUT_DIR, BASE_FILE_PATH);
@@ -111,9 +118,11 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
                 new File(baseOutputDir, "2015" + Path.SEPARATOR + "01" + Path.SEPARATOR + "01" + Path.SEPARATOR + FILE_NAME);
         Assert.assertTrue(outputDir20150101.exists());
 
-        File outputDir20150102 =
-                new File(baseOutputDir, "2015" + Path.SEPARATOR + "01" + Path.SEPARATOR + "02" + Path.SEPARATOR + FILE_NAME);
-        Assert.assertTrue(outputDir20150102.exists());
+        String currentDatePath = DateTimeFormat.forPattern("yyyy" + Path.SEPARATOR + "MM" + Path.SEPARATOR + "dd").print(currentDateTime);
+        File outputDirCurrent =
+                new File(baseOutputDir,currentDatePath + Path.SEPARATOR + FILE_NAME);
+        Assert.assertTrue(outputDirCurrent.exists());
+
 
         File outputDir20150103 =
                 new File(baseOutputDir, "2015" + Path.SEPARATOR + "01" + Path.SEPARATOR + "03" + Path.SEPARATOR + FILE_NAME);
@@ -130,8 +139,8 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
     private DataWriter<Object> getWriter(State state)
             throws IOException {
         // Build a writer to write test records
-        DataWriterBuilder<String, Object> builder = new SimpleDataWriterBuilder()
-                .writeTo(Destination.of(Destination.DestinationType.HDFS, state)).writeInFormat(WriterOutputFormat.AVRO)
+        DataWriterBuilder<String, Object> builder = new TimestampedStringRecordDataWriterBuilder()
+                .writeTo(Destination.of(Destination.DestinationType.HDFS, state)).writeInFormat(WriterOutputFormat.TXT)
                 .withWriterId(WRITER_ID).withBranches(1).forBranch(0);
         return new PartitionedDataWriter<>(builder, state);
     }
@@ -139,8 +148,7 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
     private State getBasicState() {
         State properties = new State();
 
-        properties.setProp(WmfJacksonTimeBasedWriterPartitioner.TIMESTAMP_COLUMN_KEY, TIMESTAMP_COLUMN);
-        properties.setProp(WmfJacksonTimeBasedWriterPartitioner.TIMESTAMP_FORMAT_KEY, TIMESTAMP_FORMAT);
+        properties.setProp(ConfigurationKeys.SIMPLE_WRITER_DELIMITER, "\n");
         properties.setProp(ConfigurationKeys.WRITER_BUFFER_SIZE, ConfigurationKeys.DEFAULT_BUFFER_SIZE);
         properties.setProp(ConfigurationKeys.WRITER_FILE_SYSTEM_URI, ConfigurationKeys.LOCAL_FS_URI);
         properties.setProp(ConfigurationKeys.WRITER_STAGING_DIR, STAGING_DIR);
@@ -148,7 +156,7 @@ public class TestJacksonWmfTimeBasedWriterPartitioner {
         properties.setProp(ConfigurationKeys.WRITER_FILE_PATH, BASE_FILE_PATH);
         properties.setProp(ConfigurationKeys.WRITER_FILE_NAME, FILE_NAME);
         properties.setProp(TimeBasedWriterPartitioner.WRITER_PARTITION_PATTERN, "yyyy/MM/dd");
-        properties.setProp(ConfigurationKeys.WRITER_PARTITIONER_CLASS, WmfJacksonTimeBasedWriterPartitioner.class.getName());
+        properties.setProp(ConfigurationKeys.WRITER_PARTITIONER_CLASS, TimestampedRecordTimeBasedWriterPartitioner.class.getName());
 
         return properties;
     }

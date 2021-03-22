@@ -15,16 +15,35 @@
  * limitations under the License.
  */
 
+plugins {
+    // Bump up shadow version to support Gradle 5.x https://github.com/johnrengelman/shadow
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
+}
+
 apply plugin: 'java'
 
 dependencies {
+    compile project(":gobblin-api")
+    compile project(":gobblin-cluster")
     compile project(":gobblin-core")
+    compile project(":gobblin-metrics-libs:gobblin-metrics")
+    compile project(":gobblin-metastore")
+    compile project(":gobblin-runtime")
+    compile project(":gobblin-utility")
     compile project(":gobblin-modules:gobblin-kafka-1")
 
-    compile externalDependency.gson
+    compile externalDependency.kafka1Client
+    compile externalDependency.jackson
 
     testCompile externalDependency.testng
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.6.5'
+    testCompile externalDependency.mockito
+    testCompile(externalDependency.kafka1Test){
+        exclude group: "com.sun.jmx", module: "jmxri"
+        exclude group: "com.sun.jdmk", module: "jmxtools"
+        exclude group: "javax.jms", module: "jms"
+    }
+    testCompile(externalDependency.kafka1ClientTest)
+
 }
 
 configurations {
@@ -41,3 +60,30 @@ test {
 }
 
 ext.classification = "library"
+
+// This line is added as a work around to fix a bug. Without this line, the build
+// might fail intermittently with a 'Could not find property mavenDeployer' error.
+// More details: check TOOLS-123257
+tasks.remove(tasks.uploadShadow)
+
+// create a single Jar with all dependencies
+// Copied and adapted from gobblin-yarn
+shadowJar {
+    zip64 true
+    dependencies {
+        exclude dependency('org.eclipse.jetty:.*')
+        exclude dependency('org.mortbay.jetty:.*')
+        exclude dependency('org.projectlombok:.*')
+        exclude dependency('org.codehaus.groovy:.*')
+        exclude dependency('mysql:.*')
+        exclude dependency('org.bouncycastle:.*')
+        exclude dependency('org.testng:.*')
+        exclude dependency('org.mockito:.*')
+        exclude dependency('org.datanucleus:.*')
+        exclude dependency('org.apache.hive:.*')
+        exclude dependency('org.scala-lang:scala-library:.*')
+        exclude dependency('org.apache.derby:.*')
+        exclude dependency('org.slf4j:log4j-over-slf4j:.*')
+    }
+    mergeServiceFiles()
+}

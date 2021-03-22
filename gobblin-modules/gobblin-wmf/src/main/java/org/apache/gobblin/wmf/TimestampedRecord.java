@@ -17,15 +17,18 @@
 
 package org.apache.gobblin.wmf;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import com.google.common.base.Optional;
 
 @Getter
-public class TimestampedByteArrayRecord {
-    private byte[] record;
-    private long timestamp;
+@EqualsAndHashCode
+public class TimestampedRecord<P> {
+    private P payload;
+    private Optional<Long> timestamp;
 
-    public TimestampedByteArrayRecord(byte[] record, long timestamp) {
-        this.record = record;
+    public TimestampedRecord(P payload, Optional<Long> timestamp) {
+        this.payload = payload;
         this.timestamp = timestamp;
     }
 }

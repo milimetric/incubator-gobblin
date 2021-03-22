@@ -16,26 +16,16 @@
  */
 
 
-package org.apache.gobblin.wmf;
+package org.apache.gobblin.wmf.writer.partitioner;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Optional;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.google.gson.JsonPrimitive;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.gobblin.configuration.ConfigurationKeys;
 import org.apache.gobblin.configuration.State;
 import org.apache.gobblin.util.ForkOperatorUtils;
+import org.apache.gobblin.wmf.utils.JsonStringTimestampExtractor;
 import org.apache.gobblin.writer.partitioner.TimeBasedWriterPartitioner;
-import org.joda.time.DateTime;
 
-import java.io.UnsupportedEncodingException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.concurrent.TimeUnit;
-
-import static org.apache.parquet.VersionParser.FORMAT;
+import java.util.List;
 
 
 /**
@@ -47,59 +37,53 @@ import static org.apache.parquet.VersionParser.FORMAT;
  * If a record doesn't contain the specified field, or if no field is specified, the current timestamp will be used.
  */
 @Slf4j
-public class WmfJacksonTimeBasedWriterPartitioner extends TimeBasedWriterPartitioner<byte[]> {
+public class JsonStringTimeBasedWriterPartitioner extends TimeBasedWriterPartitioner<String> {
 
     public static final String TIMESTAMP_COLUMN_KEY = ConfigurationKeys.WRITER_PREFIX + ".partition.timestamp.column";
-    public static final String DEFAULT_TIMESTAMP_COLUMN = "/timestamp";
+    public static final String DEFAULT_TIMESTAMP_COLUMN = "timestamp";
 
     public static final String TIMESTAMP_FORMAT_KEY = ConfigurationKeys.WRITER_PREFIX + ".partition.timestamp.format";
     public static final String DEFAULT_TIMESTAMP_FORMAT = "ISO_8601";
 
-    private final ObjectMapper cachingMapper;
-    private final String timestampPointer;
-    private SimpleDateFormat formatter;
-    private WmfKafkaTimestampExtractor.TimestampFormat timestampFormat;
+    private final JsonStringTimestampExtractor jsonStringTimestampExtractor;
 
-    public WmfJacksonTimeBasedWriterPartitioner(State state) {
+    public JsonStringTimeBasedWriterPartitioner(State state) {
         this(state, 1, 0);
     }
 
-    public WmfJacksonTimeBasedWriterPartitioner(State state, int numBranches, int branchId) {
+    public JsonStringTimeBasedWriterPartitioner(State state, int numBranches, int branchId) {
         super(state, numBranches, branchId);
 
-        this.timestampPointer = getTimestampColumn(state, numBranches, branchId);
-        String formatStr = getTimestampFormat(state, numBranches, branchId);
-
-        this.cachingMapper = new ObjectMapper();
-
-        try {
-            this.timestampFormat = WmfKafkaTimestampExtractor.TimestampFormat.valueOf(formatStr);
-            formatter = null;
-        } catch (IllegalArgumentException iae) {
-            this.timestampFormat = WmfKafkaTimestampExtractor.TimestampFormat.CUSTOM;
-            formatter = new SimpleDateFormat(formatStr);
-        }
+        this.jsonStringTimestampExtractor = new JsonStringTimestampExtractor(
+                getWriterPartitionerTimestampColumns(state, numBranches, branchId),
+                getWriterPartitionerTimestampFormat(state, numBranches, branchId)
+        );
     }
 
-    private static String getTimestampColumn(State state, int numBranches, int branchId) {
+    @Override
+    public long getRecordTimestamp(String record) {
+        return jsonStringTimestampExtractor.getRecordTimestamp(record);
+    }
+
+    /**
+     * Utility function facilitating getting a timestamp-column
+     */
+    public static List<String> getWriterPartitionerTimestampColumns(State state, int numBranches, int branchId) {
         String propName = ForkOperatorUtils.getPropertyNameForBranch(TIMESTAMP_COLUMN_KEY, numBranches, branchId);
-        String prop = state.getProp(propName, DEFAULT_TIMESTAMP_COLUMN);
+        List<String> prop = state.getPropAsList(propName, DEFAULT_TIMESTAMP_COLUMN);
 
         log.info("timestamp column for dataset {} is: {}", state.getProp(ConfigurationKeys.DATASET_URN_KEY), prop);
         return prop;
     }
 
-    private static String getTimestampFormat(State state, int numBranches, int branchId) {
+    /**
+     * Utility function facilitating getting a timestamp-format
+     */
+    public static String getWriterPartitionerTimestampFormat(State state, int numBranches, int branchId) {
         String propName = ForkOperatorUtils.getPropertyNameForBranch(TIMESTAMP_FORMAT_KEY, numBranches, branchId);
         String prop = state.getProp(propName, DEFAULT_TIMESTAMP_FORMAT);
 
         log.info("timestamp format for dataset {} is: {}", state.getProp(ConfigurationKeys.DATASET_URN_KEY), prop);
         return prop;
-    }
-
-
-    @Override
-    public long getRecordTimestamp(byte[] record) {
-        return WmfKafkaTimestampExtractor.findTimestamp(record, System.currentTimeMillis(), cachingMapper, timestampPointer, timestampFormat, formatter);
     }
 }

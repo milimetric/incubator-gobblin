@@ -15,16 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.gobblin.wmf;
-
-import org.apache.gobblin.configuration.WorkUnitState;
-import org.apache.gobblin.source.extractor.Extractor;
-import org.apache.gobblin.source.extractor.extract.kafka.KafkaSource;
+package org.apache.gobblin.wmf.compression;
 
 
-public class WmfKafkaTimestampSource extends KafkaSource<Object, Object> {
+/**
+ * Gzip codec using a '.gz' extension instead of '.gzip'
+ */
+public class GzipCodec extends org.apache.gobblin.codec.GzipCodec {
+
+    public static final String TAG = "gz";
+
     @Override
-    public Extractor<Object, Object> getExtractor(WorkUnitState state) {
-        return new WmfKafkaTimestampExtractor(state);
+    public String getTag() {
+        return TAG;
     }
+
 }

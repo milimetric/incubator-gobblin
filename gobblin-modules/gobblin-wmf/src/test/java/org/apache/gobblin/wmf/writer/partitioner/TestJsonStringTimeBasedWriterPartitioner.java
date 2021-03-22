@@ -15,40 +15,41 @@
  * limitations under the License.
  */
 
-package org.apache.gobblin.wmf;
-
-import java.io.File;
-import java.io.IOException;
+package org.apache.gobblin.wmf.writer.partitioner;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.gobblin.configuration.ConfigurationKeys;
+import org.apache.gobblin.configuration.State;
+import org.apache.gobblin.stream.RecordEnvelope;
+import org.apache.gobblin.wmf.writer.SimpleStringWriter;
+import org.apache.gobblin.wmf.writer.SimpleStringWriterBuilder;
 import org.apache.gobblin.writer.*;
 import org.apache.gobblin.writer.partitioner.TimeBasedWriterPartitioner;
 import org.apache.hadoop.fs.Path;
-
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import org.apache.gobblin.configuration.ConfigurationKeys;
-import org.apache.gobblin.configuration.State;
-import org.apache.gobblin.stream.RecordEnvelope;
+import java.io.File;
+import java.io.IOException;
 
 
 /**
- * Tests for {@link WmfTimeBasedWriterPartitioner}.
+ * Tests for {@link JsonStringTimeBasedWriterPartitioner}.
+ * Copied and updated from gobblin-core:org.apache.gobblin.writer.partitioner.TimeBasedAvroWriterPartitionerTest
  */
 @Test
-public class TestWmfTimeBasedWriterPartitioner {
+public class TestJsonStringTimeBasedWriterPartitioner {
 
-    private static final String SIMPLE_CLASS_NAME = TestWmfTimeBasedWriterPartitioner.class.getSimpleName();
+    private static final String SIMPLE_CLASS_NAME = TestJsonStringTimeBasedWriterPartitioner.class.getSimpleName();
 
     private static final String TEST_ROOT_DIR = SIMPLE_CLASS_NAME + "-test";
     private static final String STAGING_DIR = TEST_ROOT_DIR + Path.SEPARATOR + "staging";
     private static final String OUTPUT_DIR = TEST_ROOT_DIR + Path.SEPARATOR + "output";
     private static final String BASE_FILE_PATH = "base";
     private static final String FILE_NAME = SIMPLE_CLASS_NAME + "-name.txt";
-    private static final String TIMESTAMP_COLUMN = "timestamp";
+    private static final String TIMESTAMP_COLUMN = "meta.wrong,meta.dt";
     private static final String TIMESTAMP_FORMAT = "unix_milliseconds";
     private static final String WRITER_ID = "writer-1";
 
@@ -83,10 +84,10 @@ public class TestWmfTimeBasedWriterPartitioner {
         DataWriter<Object> millisPartitionWriter = getWriter(state);
 
         // This timestamp corresponds to 2015/01/01
-        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"timestamp\": 1420099200000}".getBytes()));
+        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420099200000}}"));
 
         // This timestamp corresponds to 2015/01/02
-        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"timestamp\": 1420185600000}".getBytes()));
+        millisPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420185600000}}"));
 
         millisPartitionWriter.close();
         millisPartitionWriter.commit();
@@ -96,7 +97,7 @@ public class TestWmfTimeBasedWriterPartitioner {
         state.setProp(TimeBasedWriterPartitioner.WRITER_PARTITION_TIMEUNIT, "seconds");
         DataWriter<Object> secsPartitionWriter = getWriter(state);
         // This timestamp corresponds to 2015/01/03
-        secsPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"timestamp\": 1420272000}".getBytes()));
+        secsPartitionWriter.writeEnvelope(new RecordEnvelope<>("{\"meta\": {\"dt\": 1420272000}}"));
         secsPartitionWriter.close();
         secsPartitionWriter.commit();
         // Check that the writer reports that 1 record has been written
@@ -119,6 +120,8 @@ public class TestWmfTimeBasedWriterPartitioner {
 
         File outputDir20150103 =
                 new File(baseOutputDir, "2015" + Path.SEPARATOR + "01" + Path.SEPARATOR + "03" + Path.SEPARATOR + FILE_NAME);
+
+        // This test fails because it's multiplying millis by 1000 so it's some date in the far future
         Assert.assertTrue(outputDir20150103.exists());
     }
 
@@ -130,8 +133,8 @@ public class TestWmfTimeBasedWriterPartitioner {
     private DataWriter<Object> getWriter(State state)
             throws IOException {
         // Build a writer to write test records
-        DataWriterBuilder<String, Object> builder = new SimpleDataWriterBuilder()
-                .writeTo(Destination.of(Destination.DestinationType.HDFS, state)).writeInFormat(WriterOutputFormat.AVRO)
+        DataWriterBuilder<String, Object> builder = new SimpleStringWriterBuilder()
+                .writeTo(Destination.of(Destination.DestinationType.HDFS, state)).writeInFormat(WriterOutputFormat.TXT)
                 .withWriterId(WRITER_ID).withBranches(1).forBranch(0);
         return new PartitionedDataWriter<>(builder, state);
     }
@@ -139,8 +142,9 @@ public class TestWmfTimeBasedWriterPartitioner {
     private State getBasicState() {
         State properties = new State();
 
-        properties.setProp(WmfTimeBasedWriterPartitioner.TIMESTAMP_COLUMN_KEY, TIMESTAMP_COLUMN);
-        properties.setProp(WmfTimeBasedWriterPartitioner.TIMESTAMP_FORMAT_KEY, TIMESTAMP_FORMAT);
+        properties.setProp(JsonStringTimeBasedWriterPartitioner.TIMESTAMP_COLUMN_KEY, TIMESTAMP_COLUMN);
+        properties.setProp(JsonStringTimeBasedWriterPartitioner.TIMESTAMP_FORMAT_KEY, TIMESTAMP_FORMAT);
+        properties.setProp(ConfigurationKeys.SIMPLE_WRITER_DELIMITER, "\n");
         properties.setProp(ConfigurationKeys.WRITER_BUFFER_SIZE, ConfigurationKeys.DEFAULT_BUFFER_SIZE);
         properties.setProp(ConfigurationKeys.WRITER_FILE_SYSTEM_URI, ConfigurationKeys.LOCAL_FS_URI);
         properties.setProp(ConfigurationKeys.WRITER_STAGING_DIR, STAGING_DIR);
@@ -148,7 +152,7 @@ public class TestWmfTimeBasedWriterPartitioner {
         properties.setProp(ConfigurationKeys.WRITER_FILE_PATH, BASE_FILE_PATH);
         properties.setProp(ConfigurationKeys.WRITER_FILE_NAME, FILE_NAME);
         properties.setProp(TimeBasedWriterPartitioner.WRITER_PARTITION_PATTERN, "yyyy/MM/dd");
-        properties.setProp(ConfigurationKeys.WRITER_PARTITIONER_CLASS, WmfTimeBasedWriterPartitioner.class.getName());
+        properties.setProp(ConfigurationKeys.WRITER_PARTITIONER_CLASS, JsonStringTimeBasedWriterPartitioner.class.getName());
 
         return properties;
     }
