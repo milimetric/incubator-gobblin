@@ -203,6 +203,9 @@ ext.externalDependency = [
     ],
     "postgresConnector": "org.postgresql:postgresql:42.1.4",
     "assertj": 'org.assertj:assertj-core:3.8.0',
+    /* WMF customizations
+     */
+    "wikimediaEventUtilities": "org.wikimedia:eventutilities:1.0.6",
 ]
 
 if (!isDefaultEnvironment)

@@ -15,23 +15,36 @@
  * limitations under the License.
  */
 
+
 package org.apache.gobblin.wmf.kafka.source.extractor.extract.kafka;
 
+import lombok.extern.slf4j.Slf4j;
+import org.apache.gobblin.configuration.WorkUnitState;
+import org.apache.gobblin.source.extractor.Extractor;
+import org.testng.Assert;
+import org.testng.annotations.Test;
 
-import org.apache.gobblin.configuration.SourceState;
-import org.apache.gobblin.source.extractor.extract.kafka.KafkaTopic;
-import org.apache.gobblin.util.DatasetFilterUtils;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
-import java.util.List;
-import java.util.regex.Pattern;
+/**
+ * Tests for {@link WikimediaKafkaSource}
+ */
 
-public abstract class KafkaSource<S, D> extends org.apache.gobblin.source.extractor.extract.kafka.KafkaSource<S, D> {
+@Slf4j
+public class TestWikimediaKafkaSource {
 
-    @Override
-    protected List<KafkaTopic> getFilteredTopics(SourceState state) {
-        List<Pattern> blacklist = DatasetFilterUtils.getPatternList(state, TOPIC_BLACKLIST);
-        List<Pattern> whitelist = DatasetFilterUtils.getPatternList(state, TOPIC_WHITELIST);
-        return this.kafkaConsumerClient.get().getFilteredTopics(blacklist, whitelist);
+    @Test
+    public void testSettingsListToMap() {
+        WikimediaKafkaSource source = new WikimediaKafkaSource() {
+            @Override
+            public Extractor getExtractor(WorkUnitState state) throws IOException {
+                return null;
+            }
+        };
+
+        Map<String, String> settingsMap = source.settingsListToMap(Arrays.asList("set1:val1", "set2:val2", "set3:val3"));
+        Assert.assertEquals(settingsMap.get("set2"), "val2");
     }
-
 }

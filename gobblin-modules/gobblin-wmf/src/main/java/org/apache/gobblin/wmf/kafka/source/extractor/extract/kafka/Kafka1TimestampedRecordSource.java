@@ -21,7 +21,7 @@ import org.apache.gobblin.configuration.WorkUnitState;
 import org.apache.gobblin.source.extractor.Extractor;
 
 
-public class Kafka1TimestampedRecordSource extends KafkaSource<Object, Object> {
+public class Kafka1TimestampedRecordSource extends WikimediaKafkaSource<Object, Object> {
     @Override
     public Extractor<Object, Object> getExtractor(WorkUnitState state) {
         return new Kafka1TimestampedRecordExtractor(state);

@@ -26,6 +26,9 @@ repositories {
   maven {
     url "https://linkedin.bintray.com/maven"
   }
+  maven {
+    url "https://archiva.wikimedia.org/repository/releases/"
+  }
   jcenter()
 }
 
